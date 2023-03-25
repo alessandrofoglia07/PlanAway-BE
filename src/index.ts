@@ -69,3 +69,35 @@ app.post('/signup', (req: Request, res: Response) => {
         }
     })
 })
+
+app.post('/login', (req: Request, res: Response) => {
+    const email : string = req.body.email;
+    const password : string = req.body.password;
+
+    db.query(`SELECT * FROM users WHERE email = '${email}'`, (err: MysqlError, result: any) => {
+        if (err) {
+            console.log(err);
+            res.status(500);
+        } else {
+            if (result.length > 0) {
+                bcrypt.compare(password, result[0].password, (err : Error | undefined, response : boolean) => {
+                    if (err) {
+                        res.status(500)
+                        console.log(err);
+                    } else {
+                        if (response) {
+                            res.status(200).send({message: 'Login successful'});
+                            console.log('Login successful');
+                        } else {
+                            res.send({message: 'Incorrect password'});
+                            console.log('Incorrect password');
+                        }
+                    }
+                })
+            } else {
+                res.send({message: 'Email is not registered'});
+                console.log('Email is not registered');
+            }
+        }
+    })
+})
