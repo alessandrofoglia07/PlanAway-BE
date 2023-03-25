@@ -10,13 +10,17 @@
     "start": "concurrently npm:start:*"
   },
   "keywords": [],
-  "author": "",
+  "author": "Alex",
   "license": "ISC",
   "dependencies": {
+    "@types/bcrypt": "^5.0.0",
     "@types/cors": "^2.8.13",
+    "@types/mysql": "^2.15.21",
+    "bcrypt": "^5.1.0",
     "concurrently": "^7.6.0",
     "cors": "^2.8.5",
     "express": "^4.18.2",
+    "mysql": "^2.18.1",
     "nodemon": "^2.0.21"
   },
   "devDependencies": {
