@@ -2,6 +2,8 @@ import express from "express";
 import cors from 'cors';
 import mysql from 'mysql';
 import bcrypt from 'bcrypt';
+import jwt from "jsonwebtoken";
+const secretKey = 'i&cfUx@uBajZ#HxV3f0u8v$GgK4$buX7';
 // npm start to compile and run
 const app = express();
 const port = 3002;
@@ -83,7 +85,8 @@ app.post('/login', (req, res) => {
                     }
                     else {
                         if (response) {
-                            res.status(200).send({ message: 'Login successful' });
+                            const token = jwt.sign({ email: email }, secretKey, { expiresIn: '1h' });
+                            res.status(200).send({ message: 'Login successful', token: token });
                             console.log('Login successful');
                         }
                         else {
