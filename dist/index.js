@@ -1,9 +1,9 @@
+import 'dotenv/config';
 import express from "express";
 import cors from 'cors';
 import mysql from 'mysql';
 import bcrypt from 'bcrypt';
 import jwt from "jsonwebtoken";
-const secretKey = 'i&cfUx@uBajZ#HxV3f0u8v$GgK4$buX7';
 // npm start to compile and run
 const app = express();
 const port = 3002;
@@ -85,8 +85,9 @@ app.post('/login', (req, res) => {
                     }
                     else {
                         if (response) {
-                            const token = jwt.sign({ email: email }, secretKey, { expiresIn: '1h' });
-                            res.status(200).send({ message: 'Login successful', token: token });
+                            const username = result[0].username;
+                            const token = jwt.sign({ email: email, username: username }, process.env.ACCESS_TOKEN_SECRET_KEY);
+                            res.status(200).send({ message: 'Login successful', token: token, username: username, email: email });
                             console.log('Login successful');
                         }
                         else {
@@ -103,3 +104,15 @@ app.post('/login', (req, res) => {
         }
     });
 });
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (token == null)
+        return res.sendStatus(401);
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET_KEY, (err, user) => {
+        if (err)
+            return res.sendStatus(403);
+        req.user = user;
+        next();
+    });
+};

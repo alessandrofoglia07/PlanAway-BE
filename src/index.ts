@@ -1,8 +1,8 @@
-require('dotenv').config();
+import 'dotenv/config'
 import express, {Application, Response, Request} from "express";
 import cors from 'cors';
 import mysql, { MysqlError } from 'mysql';
-import bcrypt, { hash } from 'bcrypt';
+import bcrypt from 'bcrypt';
 import jwt from "jsonwebtoken";
 
 // npm start to compile and run
@@ -90,7 +90,7 @@ app.post('/login', (req: Request, res: Response) => {
                         if (response) {
                             const username = result[0].username;
                             const token = jwt.sign({email: email, username: username}, process.env.ACCESS_TOKEN_SECRET_KEY!);
-                            res.status(200).send({message: 'Login successful', token: token})
+                            res.status(200).send({message: 'Login successful', token: token, username: username, email: email})
                             console.log('Login successful');
                         } else {
                             res.send({message: 'Incorrect password'});
