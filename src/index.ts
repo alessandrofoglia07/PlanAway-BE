@@ -1,10 +1,10 @@
+require('dotenv').config();
 import express, {Application, Response, Request} from "express";
 import cors from 'cors';
 import mysql, { MysqlError } from 'mysql';
 import bcrypt, { hash } from 'bcrypt';
 import jwt from "jsonwebtoken";
 
-const secretKey = 'i&cfUx@uBajZ#HxV3f0u8v$GgK4$buX7'
 // npm start to compile and run
 const app : Application = express();
 const port = 3002;
@@ -88,8 +88,9 @@ app.post('/login', (req: Request, res: Response) => {
                         console.log(err);
                     } else {
                         if (response) {
-                            const token = jwt.sign({email: email}, secretKey, {expiresIn: '1h'});
-                            res.status(200).send({message: 'Login successful', token: token});
+                            const username = result[0].username;
+                            const token = jwt.sign({email: email, username: username}, process.env.ACCESS_TOKEN_SECRET_KEY!);
+                            res.status(200).send({message: 'Login successful', token: token})
                             console.log('Login successful');
                         } else {
                             res.send({message: 'Incorrect password'});
@@ -104,3 +105,15 @@ app.post('/login', (req: Request, res: Response) => {
         }
     })
 })
+
+const authenticateToken = (req: any, res: Response, next: any) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (token == null) return res.sendStatus(401);
+
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET_KEY!, (err: any, user: any) => {
+        if (err) return res.sendStatus(403);
+        req.user = user;
+        next();
+    })
+}
