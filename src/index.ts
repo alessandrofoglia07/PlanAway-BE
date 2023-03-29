@@ -26,7 +26,7 @@ const db = mysql.createConnection({
     host: 'localhost',
     password: 'root123',
     database: 'planaway'
-})
+});
 
 db.connect((err) => {
     if (err) {
@@ -34,7 +34,7 @@ db.connect((err) => {
     } else {
         console.log('Connected to MySQL db');
     }
-})
+});
 
 
 app.post('/signup', (req: Request, res: Response) => {
@@ -53,12 +53,12 @@ app.post('/signup', (req: Request, res: Response) => {
             } else {
                 bcrypt.hash(password, SaltRounds, (err : Error | undefined, hash : string) => {
                     if (err) {
-                        res.status(500)
+                        res.status(500);
                         console.log(err);
                     } else {
                         db.query(`INSERT INTO users (username, password, email) VALUES ('${username}', '${hash}', '${email}')`, (err : MysqlError, result : string) => {
                             if (err) {
-                                res.status(500)
+                                res.status(500);
                                 console.log(err);
                             } else {
                                 res.status(201).send({message: 'User created'});
@@ -70,7 +70,7 @@ app.post('/signup', (req: Request, res: Response) => {
             }
         }
     })
-})
+});
 
 app.post('/login', (req: Request, res: Response) => {
     const email : string = req.body.email;
@@ -84,13 +84,14 @@ app.post('/login', (req: Request, res: Response) => {
             if (result.length > 0) {
                 bcrypt.compare(password, result[0].password, (err : Error | undefined, response : boolean) => {
                     if (err) {
-                        res.status(500)
+                        res.status(500);
                         console.log(err);
                     } else {
                         if (response) {
                             const username = result[0].username;
-                            const token = jwt.sign({email: email, username: username}, process.env.ACCESS_TOKEN_SECRET_KEY!);
-                            res.status(200).send({message: 'Login successful', token: token, username: username, email: email})
+                            const id = result[0].idusers;
+                            const token = jwt.sign({id: id, email: email, username: username}, process.env.ACCESS_TOKEN_SECRET_KEY!);
+                            res.status(200).send({message: 'Login successful', token: token, id: id, username: username, email: email});
                             console.log('Login successful');
                         } else {
                             res.send({message: 'Incorrect password'});
@@ -104,7 +105,7 @@ app.post('/login', (req: Request, res: Response) => {
             }
         }
     })
-})
+});
 
 const authenticateToken = (req: any, res: Response, next: any) => {
     const authHeader = req.headers['authorization'];
@@ -116,4 +117,20 @@ const authenticateToken = (req: any, res: Response, next: any) => {
         req.user = user;
         next();
     })
-}
+};
+
+app.post('/purchases', (req: any, res: Response) => {
+    const user_id : number = req.body.user_id;
+    const item_name : any[] = req.body.cartItems;
+    const price : number = req.body.price;
+
+    const result = db.query(`INSERT INTO purchases (user_id, item_name, price) VALUES ('${user_id}', '${item_name}', '${price}')`, (err: MysqlError, result: string) => {
+        if (err) {
+            res.status(500);
+            console.log(err);
+        } else {
+            res.status(201).send({message: 'Purchase created'});
+            console.log('Purchase successful');
+        }
+    })
+});

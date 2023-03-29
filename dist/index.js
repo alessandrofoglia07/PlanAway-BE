@@ -86,8 +86,9 @@ app.post('/login', (req, res) => {
                     else {
                         if (response) {
                             const username = result[0].username;
-                            const token = jwt.sign({ email: email, username: username }, process.env.ACCESS_TOKEN_SECRET_KEY);
-                            res.status(200).send({ message: 'Login successful', token: token, username: username, email: email });
+                            const id = result[0].idusers;
+                            const token = jwt.sign({ id: id, email: email, username: username }, process.env.ACCESS_TOKEN_SECRET_KEY);
+                            res.status(200).send({ message: 'Login successful', token: token, id: id, username: username, email: email });
                             console.log('Login successful');
                         }
                         else {
@@ -116,3 +117,18 @@ const authenticateToken = (req, res, next) => {
         next();
     });
 };
+app.post('/purchases', (req, res) => {
+    const user_id = req.body.user_id;
+    const item_name = req.body.cartItems;
+    const price = req.body.price;
+    const result = db.query(`INSERT INTO purchases (user_id, item_name, price) VALUES ('${user_id}', '${item_name}', '${price}')`, (err, result) => {
+        if (err) {
+            res.status(500);
+            console.log(err);
+        }
+        else {
+            res.status(201).send({ message: 'Purchase created' });
+            console.log('Purchase successful');
+        }
+    });
+});
