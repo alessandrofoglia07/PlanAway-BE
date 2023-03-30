@@ -119,18 +119,66 @@ const authenticateToken = (req: any, res: Response, next: any) => {
     })
 };
 
-app.post('/purchases', (req: any, res: Response) => {
+app.post('/purchases', (req: Request, res: Response) => {
     const user_id : number = req.body.user_id;
     const item_name : any[] = req.body.cartItems;
     const price : number = req.body.price;
 
-    const result = db.query(`INSERT INTO purchases (user_id, item_name, price) VALUES ('${user_id}', '${item_name}', '${price}')`, (err: MysqlError, result: string) => {
+    db.query(`INSERT INTO purchases (user_id, item_name, price) VALUES ('${user_id}', '${item_name}', '${price}')`, (err: MysqlError, result: string) => {
         if (err) {
             res.status(500);
             console.log(err);
         } else {
+            db.query(`UPDATE users SET balance = balance - ${price} WHERE idusers = ${user_id}`, (err: MysqlError, result: string) => {
+                if (err) {
+                    res.status(500);
+                    console.log(err);
+                }});
             res.status(201).send({message: 'Purchase created'});
             console.log('Purchase successful');
         }
     })
 });
+
+app.post('/addMoney', (req: Request, res: Response) => {
+    const user_id : number = req.body.user_id;
+    const amount : number = req.body.amount;
+
+    db.query(`UPDATE users SET balance = balance + ${amount} WHERE idusers = ${user_id}`, (err: MysqlError, result: string) => {
+        if (err) {
+            res.status(500);
+            console.log(err);
+        } else {
+            res.status(201).send({message: 'Money added'});
+            console.log('Money added');
+        }
+    })
+});
+
+app.post('/removeMoney', (req: Request, res: Response) => {
+    const user_id : number = req.body.user_id;
+    const amount : number = req.body.amount;
+
+    db.query(`UPDATE users SET balance = balance - ${amount} WHERE idusers = ${user_id}`, (err: MysqlError, result: string) => {
+        if (err) {
+            res.status(500);
+            console.log(err);
+        } else {
+            res.status(201).send({message: 'Money removed'});
+            console.log('Money removed');
+        }
+    })
+});
+
+app.get('/getBalance', (req: Request, res: Response) => {
+    const user_id = req.query.user_id;
+
+    db.query(`SELECT balance FROM users WHERE idusers = ${user_id}`, (err: MysqlError, result: any) => {
+        if (err) {
+            res.status(500);
+            console.log(err);
+        } else {
+            res.status(201).send({message: 'Balance returned', balance: result[0].balance});
+        }
+    })
+})

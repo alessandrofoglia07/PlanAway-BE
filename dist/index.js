@@ -121,14 +121,60 @@ app.post('/purchases', (req, res) => {
     const user_id = req.body.user_id;
     const item_name = req.body.cartItems;
     const price = req.body.price;
-    const result = db.query(`INSERT INTO purchases (user_id, item_name, price) VALUES ('${user_id}', '${item_name}', '${price}')`, (err, result) => {
+    db.query(`INSERT INTO purchases (user_id, item_name, price) VALUES ('${user_id}', '${item_name}', '${price}')`, (err, result) => {
         if (err) {
             res.status(500);
             console.log(err);
         }
         else {
+            db.query(`UPDATE users SET balance = balance - ${price} WHERE idusers = ${user_id}`, (err, result) => {
+                if (err) {
+                    res.status(500);
+                    console.log(err);
+                }
+            });
             res.status(201).send({ message: 'Purchase created' });
             console.log('Purchase successful');
+        }
+    });
+});
+app.post('/addMoney', (req, res) => {
+    const user_id = req.body.user_id;
+    const amount = req.body.amount;
+    db.query(`UPDATE users SET balance = balance + ${amount} WHERE idusers = ${user_id}`, (err, result) => {
+        if (err) {
+            res.status(500);
+            console.log(err);
+        }
+        else {
+            res.status(201).send({ message: 'Money added' });
+            console.log('Money added');
+        }
+    });
+});
+app.post('/removeMoney', (req, res) => {
+    const user_id = req.body.user_id;
+    const amount = req.body.amount;
+    db.query(`UPDATE users SET balance = balance - ${amount} WHERE idusers = ${user_id}`, (err, result) => {
+        if (err) {
+            res.status(500);
+            console.log(err);
+        }
+        else {
+            res.status(201).send({ message: 'Money removed' });
+            console.log('Money removed');
+        }
+    });
+});
+app.get('/getBalance', (req, res) => {
+    const user_id = req.query.user_id;
+    db.query(`SELECT balance FROM users WHERE idusers = ${user_id}`, (err, result) => {
+        if (err) {
+            res.status(500);
+            console.log(err);
+        }
+        else {
+            res.status(201).send({ message: 'Balance returned', balance: result[0].balance });
         }
     });
 });
