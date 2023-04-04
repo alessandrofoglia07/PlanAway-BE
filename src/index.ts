@@ -4,6 +4,8 @@ import cors from 'cors';
 import mysql, { MysqlError } from 'mysql';
 import bcrypt from 'bcrypt';
 import jwt from "jsonwebtoken";
+import { v4 as uuidv4 } from 'uuid';
+import nodemailer from 'nodemailer';
 
 // npm start to compile and run
 const app : Application = express();
@@ -36,19 +38,43 @@ db.connect((err) => {
     }
 });
 
+let transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.AUTH_EMAIL,
+        pass: process.env.AUTH_PASSWORD
+    }
+});
+
+const sendVerificationEmail = (email: string, verificationToken: string) => {
+    const mailOptions = {
+        from: process.env.AUTH_EMAIL,
+        to: email,
+        subject: 'Verify your email',
+        text: `Click this link to verify your email: http://localhost:3000/verify/${verificationToken}\n This link will expire in 24 hours.`
+    };
+
+    transporter.sendMail(mailOptions, (err : Error, info : any) => {
+        if (err) {
+            console.log(err);
+        } else {
+            console.log('Verification email sent: ' + info.response);
+        }
+    });
+}
 
 app.post('/signup', (req: Request, res: Response) => {
     const username : string = req.body.username;
     const password : string = req.body.password;
     const email : string = req.body.email;
+    const verificationToken : string = uuidv4();
 
     db.query(`SELECT * FROM users WHERE email = '${email}'`, (err: MysqlError, result: string) => {
         if (err) {
             console.log(err);
-            res.status(500);
         } else {
             if (result.length > 0) {
-                res.send({message: 'Email is already registered'});
+                res.send({ message: 'Email is already registered' });
                 console.log('Email is already registered');
             } else {
                 bcrypt.hash(password, SaltRounds, (err : Error | undefined, hash : string) => {
@@ -56,20 +82,46 @@ app.post('/signup', (req: Request, res: Response) => {
                         res.status(500);
                         console.log(err);
                     } else {
-                        db.query(`INSERT INTO users (username, password, email) VALUES ('${username}', '${hash}', '${email}')`, (err : MysqlError, result : string) => {
+                        db.query(`INSERT INTO users (username, email, password, balance, token, is_email_verified, token_expiration_date) VALUES ('${username}', '${email}', '${hash}', 0, '${verificationToken}', 0, DATE_ADD(NOW(), INTERVAL 1 DAY))`, (err: MysqlError, result: string) => {
                             if (err) {
                                 res.status(500);
                                 console.log(err);
                             } else {
-                                res.status(201).send({message: 'User created'});
-                                console.log('Sign up successful');
+                                res.send({ message: 'User created' });
+                                console.log('Token inserted');
+                                sendVerificationEmail(email, verificationToken);
                             }
-                        })
+                        });
                     }
                 })
             }
         }
-    })
+    });
+});
+
+//TO FIX!
+const verifyEmail = async (token: string) => {
+    try {
+        const [rows]: any = await db.query('SELECT * FROM users WHERE token = ?', [token]);
+        if (!rows || rows.length === 0) {
+            return { message: 'Invalid token' };
+        }
+        if (rows) {
+            const userId = rows[0].idusers;
+            await db.query('UPDATE users SET is_email_verified = 1 WHERE idusers = ?', [userId]);
+            return { message: 'Email verified' };
+        } else {
+            return { message: 'Invalid token' };
+        }
+    } catch (err: any) {
+        throw new Error(err.message);
+    }
+};
+
+app.get('/verify/:token', async (req: Request, res: Response) => {
+    const token : string = req.params.token;
+
+    verifyEmail(token);
 });
 
 app.post('/login', (req: Request, res: Response) => {
@@ -81,7 +133,7 @@ app.post('/login', (req: Request, res: Response) => {
             console.log(err);
             res.status(500);
         } else {
-            if (result.length > 0) {
+            if (result.length > 0 && result[0].is_email_verified === 1) {
                 bcrypt.compare(password, result[0].password, (err : Error | undefined, response : boolean) => {
                     if (err) {
                         res.status(500);
@@ -100,8 +152,8 @@ app.post('/login', (req: Request, res: Response) => {
                     }
                 })
             } else {
-                res.send({message: 'Email is not registered'});
-                console.log('Email is not registered');
+                res.send({message: 'Email is not registered or email is not verified'});
+                console.log('Email is not registered or email is not verified');
             }
         }
     })
