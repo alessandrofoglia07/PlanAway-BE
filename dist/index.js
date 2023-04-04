@@ -95,7 +95,6 @@ app.post('/signup', (req, res) => {
     });
 });
 const verifyEmail = (token, callback) => {
-    console.log(1);
     let resultCode;
     db.query(`SELECT * FROM users WHERE token = '${token}'`, (err, result) => {
         if (err) {
@@ -104,6 +103,12 @@ const verifyEmail = (token, callback) => {
         }
         else {
             if (result.length > 0) {
+                const is_email_verified = result[0].is_email_verified;
+                if (is_email_verified === 1) {
+                    console.log('Email already verified');
+                    resultCode = 3;
+                }
+                ;
                 const userId = result[0].idusers;
                 db.query('UPDATE users SET is_email_verified = 1 WHERE idusers = ?', [userId]);
                 console.log('Email verified');
@@ -119,18 +124,23 @@ const verifyEmail = (token, callback) => {
 };
 app.get('/verify/:token', async (req, res) => {
     const token = req.params.token;
-    console.log(token);
+    console.log('Verification request with token: \n' + token);
     verifyEmail(token, (resultCode) => {
-        console.log(resultCode);
         if (resultCode === 0) {
-            res.status(500);
+            res
+                .status(500)
+                .send({ message: '500: Server error!' });
         }
         else if (resultCode === 1) {
-            res.send({ message: 'Email verified' });
+            res.send({ message: 'Email verified... Successfully!' });
         }
         else if (resultCode === 2) {
-            res.send({ message: 'Invalid token' });
+            res.send({ message: 'Invalid token! Try again or ask for support' });
         }
+        else if (resultCode === 3) {
+            res.send({ message: 'Email is already verified' });
+        }
+        ;
     });
 });
 app.post('/login', (req, res) => {
