@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from "express";
 import cors from 'cors';
-import mysql from 'mysql';
+import mysql from 'mysql2';
 import bcrypt from 'bcrypt';
 import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from 'uuid';
@@ -94,29 +94,44 @@ app.post('/signup', (req, res) => {
         }
     });
 });
-//TO FIX!
-const verifyEmail = async (token) => {
-    try {
-        const [rows] = await db.query('SELECT * FROM users WHERE token = ?', [token]);
-        if (!rows || rows.length === 0) {
-            return { message: 'Invalid token' };
-        }
-        if (rows) {
-            const userId = rows[0].idusers;
-            await db.query('UPDATE users SET is_email_verified = 1 WHERE idusers = ?', [userId]);
-            return { message: 'Email verified' };
+const verifyEmail = (token, callback) => {
+    console.log(1);
+    let resultCode;
+    db.query(`SELECT * FROM users WHERE token = '${token}'`, (err, result) => {
+        if (err) {
+            console.log(err);
+            resultCode = 0;
         }
         else {
-            return { message: 'Invalid token' };
+            if (result.length > 0) {
+                const userId = result[0].idusers;
+                db.query('UPDATE users SET is_email_verified = 1 WHERE idusers = ?', [userId]);
+                console.log('Email verified');
+                resultCode = 1;
+            }
+            else {
+                console.log('Invalid token');
+                resultCode = 2;
+            }
         }
-    }
-    catch (err) {
-        throw new Error(err.message);
-    }
+        callback(resultCode);
+    });
 };
 app.get('/verify/:token', async (req, res) => {
     const token = req.params.token;
-    verifyEmail(token);
+    console.log(token);
+    verifyEmail(token, (resultCode) => {
+        console.log(resultCode);
+        if (resultCode === 0) {
+            res.status(500);
+        }
+        else if (resultCode === 1) {
+            res.send({ message: 'Email verified' });
+        }
+        else if (resultCode === 2) {
+            res.send({ message: 'Invalid token' });
+        }
+    });
 });
 app.post('/login', (req, res) => {
     const email = req.body.email;
