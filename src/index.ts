@@ -18,7 +18,10 @@ app.use(cors({
 app.use(express.urlencoded({extended: true}));
 app.use(express.json());
 
-app.listen(port, ()=>console.log(`App running on port ${port}`));
+app.listen(port, ()=>{
+    console.log(`App running on port ${port}`);
+    tokenExpirationCheckAllUsers();
+});
 
 // bcrypt 
 const SaltRounds = 10;
@@ -47,6 +50,32 @@ let transporter = nodemailer.createTransport({
     }
 });
 
+const tokenExpirationCheckAllUsers = () => {
+    db.query(`SELECT * FROM users`, (err: MysqlError, results: any) => {
+        if (err) {
+            console.log(err);
+        } else {
+            results.forEach((result: any) => {
+                const idUser = result.idusers;
+                const tokenExpirationDate = result.token_expiration_date;
+                const isEmailVerified = result.is_email_verified;
+
+                // if email is NOT verified and token is expired, delete user
+                if (isEmailVerified === 0 && tokenExpirationDate < new Date()) {
+                    console.log('Token expired, deleting user ' + idUser);
+                    db.query(`DELETE FROM users WHERE idusers = '${idUser}'`, (err: MysqlError, result: any) => {
+                        if (err) {
+                            console.log(err);
+                        } else {
+                            console.log('User deleted');
+                        }
+                    });
+                }
+            });
+        }
+    });
+};
+
 const sendVerificationEmail = (email: string, verificationToken: string) => {
     const mailOptions = {
         from: process.env.AUTH_EMAIL,
@@ -62,9 +91,17 @@ const sendVerificationEmail = (email: string, verificationToken: string) => {
             console.log('Verification email sent: ' + info.response);
         }
     });
+};
+
+const createTomorrowsDate = () => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow;
 }
 
 app.post('/signup', (req: Request, res: Response) => {
+    tokenExpirationCheckAllUsers();
     const username : string = req.body.username;
     const password : string = req.body.password;
     const email : string = req.body.email;
@@ -83,7 +120,7 @@ app.post('/signup', (req: Request, res: Response) => {
                         res.status(500);
                         console.log(err);
                     } else {
-                        db.query(`INSERT INTO users (username, email, password, balance, token, is_email_verified, token_expiration_date) VALUES ('${username}', '${email}', '${hash}', 0, '${verificationToken}', 0, DATE_ADD(NOW(), INTERVAL 1 DAY))`, (err: MysqlError, result: string) => {
+                        db.query(`INSERT INTO users (username, email, password, balance, token, is_email_verified, token_expiration_date) VALUES ('${username}', '${email}', '${hash}', 0, '${verificationToken}', 0, '${createTomorrowsDate()}')`, (err: MysqlError, result: string) => {
                             if (err) {
                                 res.status(500);
                                 console.log(err);
@@ -124,9 +161,10 @@ const verifyEmail = (token: string, callback: (resultCode: number)=>void) => {
         }
         callback(resultCode);
     });
-}
+};
 
 app.get('/verify/:token', async (req: Request, res: Response) => {
+    tokenExpirationCheckAllUsers();
     const token : string = req.params.token;
     console.log('Verification request with token: \n' + token);
 
@@ -146,6 +184,7 @@ app.get('/verify/:token', async (req: Request, res: Response) => {
 });
 
 app.post('/login', (req: Request, res: Response) => {
+    tokenExpirationCheckAllUsers();
     const email : string = req.body.email;
     const password : string = req.body.password;
 
@@ -180,19 +219,21 @@ app.post('/login', (req: Request, res: Response) => {
     })
 });
 
-const authenticateToken = (req: any, res: Response, next: any) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    if (token == null) return res.sendStatus(401);
+// Decomment this to use authentication middleware
+// const authenticateToken = (req: any, res: Response, next: any) => {
+//     const authHeader = req.headers['authorization'];
+//     const token = authHeader && authHeader.split(' ')[1];
+//     if (token == null) return res.sendStatus(401);
 
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET_KEY!, (err: any, user: any) => {
-        if (err) return res.sendStatus(403);
-        req.user = user;
-        next();
-    })
-};
+//     jwt.verify(token, process.env.ACCESS_TOKEN_SECRET_KEY!, (err: any, user: any) => {
+//         if (err) return res.sendStatus(403);
+//         req.user = user;
+//         next();
+//     })
+// };
 
 app.post('/purchases', (req: Request, res: Response) => {
+    tokenExpirationCheckAllUsers();
     const user_id : number = req.body.user_id;
     const item_name : any[] = req.body.cartItems;
     const price : number = req.body.price;
@@ -214,6 +255,7 @@ app.post('/purchases', (req: Request, res: Response) => {
 });
 
 app.post('/addMoney', (req: Request, res: Response) => {
+    tokenExpirationCheckAllUsers();
     const user_id : number = req.body.user_id;
     const amount : number = req.body.amount;
 
@@ -229,6 +271,7 @@ app.post('/addMoney', (req: Request, res: Response) => {
 });
 
 app.post('/removeMoney', (req: Request, res: Response) => {
+    tokenExpirationCheckAllUsers();
     const user_id : number = req.body.user_id;
     const amount : number = req.body.amount;
 
@@ -244,6 +287,7 @@ app.post('/removeMoney', (req: Request, res: Response) => {
 });
 
 app.get('/getBalance', (req: Request, res: Response) => {
+    tokenExpirationCheckAllUsers();
     const user_id = req.query.user_id;
 
     db.query(`SELECT balance FROM users WHERE idusers = ${user_id}`, (err: MysqlError, result: any) => {
@@ -254,4 +298,4 @@ app.get('/getBalance', (req: Request, res: Response) => {
             res.status(201).send({message: 'Balance returned', balance: result[0].balance});
         }
     })
-})
+});

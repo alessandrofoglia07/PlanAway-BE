@@ -15,7 +15,10 @@ app.use(cors({
 }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-app.listen(port, () => console.log(`App running on port ${port}`));
+app.listen(port, () => {
+    console.log(`App running on port ${port}`);
+    tokenExpirationCheckAllUsers();
+});
 // bcrypt 
 const SaltRounds = 10;
 // db connection
@@ -40,6 +43,32 @@ let transporter = nodemailer.createTransport({
         pass: process.env.AUTH_PASSWORD
     }
 });
+const tokenExpirationCheckAllUsers = () => {
+    db.query(`SELECT * FROM users`, (err, results) => {
+        if (err) {
+            console.log(err);
+        }
+        else {
+            results.forEach((result) => {
+                const idUser = result.idusers;
+                const tokenExpirationDate = result.token_expiration_date;
+                const isEmailVerified = result.is_email_verified;
+                // if email is NOT verified and token is expired, delete user
+                if (isEmailVerified === 0 && tokenExpirationDate < new Date()) {
+                    console.log('Token expired, deleting user ' + idUser);
+                    db.query(`DELETE FROM users WHERE idusers = '${idUser}'`, (err, result) => {
+                        if (err) {
+                            console.log(err);
+                        }
+                        else {
+                            console.log('User deleted');
+                        }
+                    });
+                }
+            });
+        }
+    });
+};
 const sendVerificationEmail = (email, verificationToken) => {
     const mailOptions = {
         from: process.env.AUTH_EMAIL,
@@ -56,7 +85,14 @@ const sendVerificationEmail = (email, verificationToken) => {
         }
     });
 };
+const createTomorrowsDate = () => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow;
+};
 app.post('/signup', (req, res) => {
+    tokenExpirationCheckAllUsers();
     const username = req.body.username;
     const password = req.body.password;
     const email = req.body.email;
@@ -77,7 +113,7 @@ app.post('/signup', (req, res) => {
                         console.log(err);
                     }
                     else {
-                        db.query(`INSERT INTO users (username, email, password, balance, token, is_email_verified, token_expiration_date) VALUES ('${username}', '${email}', '${hash}', 0, '${verificationToken}', 0, DATE_ADD(NOW(), INTERVAL 1 DAY))`, (err, result) => {
+                        db.query(`INSERT INTO users (username, email, password, balance, token, is_email_verified, token_expiration_date) VALUES ('${username}', '${email}', '${hash}', 0, '${verificationToken}', 0, '${createTomorrowsDate()}')`, (err, result) => {
                             if (err) {
                                 res.status(500);
                                 console.log(err);
@@ -123,6 +159,7 @@ const verifyEmail = (token, callback) => {
     });
 };
 app.get('/verify/:token', async (req, res) => {
+    tokenExpirationCheckAllUsers();
     const token = req.params.token;
     console.log('Verification request with token: \n' + token);
     verifyEmail(token, (resultCode) => {
@@ -144,6 +181,7 @@ app.get('/verify/:token', async (req, res) => {
     });
 });
 app.post('/login', (req, res) => {
+    tokenExpirationCheckAllUsers();
     const email = req.body.email;
     const password = req.body.password;
     db.query(`SELECT * FROM users WHERE email = '${email}'`, (err, result) => {
@@ -180,19 +218,19 @@ app.post('/login', (req, res) => {
         }
     });
 });
-const authenticateToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    if (token == null)
-        return res.sendStatus(401);
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET_KEY, (err, user) => {
-        if (err)
-            return res.sendStatus(403);
-        req.user = user;
-        next();
-    });
-};
+// Decomment this to use authentication middleware
+// const authenticateToken = (req: any, res: Response, next: any) => {
+//     const authHeader = req.headers['authorization'];
+//     const token = authHeader && authHeader.split(' ')[1];
+//     if (token == null) return res.sendStatus(401);
+//     jwt.verify(token, process.env.ACCESS_TOKEN_SECRET_KEY!, (err: any, user: any) => {
+//         if (err) return res.sendStatus(403);
+//         req.user = user;
+//         next();
+//     })
+// };
 app.post('/purchases', (req, res) => {
+    tokenExpirationCheckAllUsers();
     const user_id = req.body.user_id;
     const item_name = req.body.cartItems;
     const price = req.body.price;
@@ -214,6 +252,7 @@ app.post('/purchases', (req, res) => {
     });
 });
 app.post('/addMoney', (req, res) => {
+    tokenExpirationCheckAllUsers();
     const user_id = req.body.user_id;
     const amount = req.body.amount;
     db.query(`UPDATE users SET balance = balance + ${amount} WHERE idusers = ${user_id}`, (err, result) => {
@@ -228,6 +267,7 @@ app.post('/addMoney', (req, res) => {
     });
 });
 app.post('/removeMoney', (req, res) => {
+    tokenExpirationCheckAllUsers();
     const user_id = req.body.user_id;
     const amount = req.body.amount;
     db.query(`UPDATE users SET balance = balance - ${amount} WHERE idusers = ${user_id}`, (err, result) => {
@@ -242,6 +282,7 @@ app.post('/removeMoney', (req, res) => {
     });
 });
 app.get('/getBalance', (req, res) => {
+    tokenExpirationCheckAllUsers();
     const user_id = req.query.user_id;
     db.query(`SELECT balance FROM users WHERE idusers = ${user_id}`, (err, result) => {
         if (err) {
